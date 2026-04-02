@@ -295,3 +295,61 @@ You need:
 	1.	Custom HA metrics (REST scrape)
 	2.	Health scoring logic
 	3.	Quad grouping labels
+
+
+Built the dashboard JSON here:
+
+Download the Grafana dashboard JSON￼
+
+A couple of important caveats:
+	•	The GitHub dashboard you pointed me to is an appliance hardware/firmware dashboard. It clearly includes appliance/info metrics like mqa_current_datetime_seconds_total, mqa_uptime_seconds_total, mqa_bootuptime_seconds_total, and mqa_info, but it does not expose first-class queue-manager HA/DR health metrics or a qmgr-by-quad health table.  ￼
+	•	Because of that, the JSON I built assumes you either already have, or will add, metrics such as mq_qmgr_health_score, mq_qmgr_status, mq_ha_partitioned, mq_ha_sync_state, and mq_dr_status. Those were not present in the referenced dashboard.  ￼
+
+What’s in the dashboard:
+	•	a QMGR Health by Quad table sorted worst first
+	•	summary stats for critical, warning, and partitioned qmgrs
+	•	a Worst Health Score by Quad bar gauge
+	•	a Queue Pressure by QMGR table
+	•	a Top 10 Worst QMGR Health Scores Over Time panel
+	•	an embedded note listing the metrics found vs. the HA/DR metrics missing from the original dashboard
+
+This is meant to be a solid starting point rather than a guaranteed drop-in import for your exact Prometheus label set. The biggest thing you may need to adjust is the label names: quad, ha_pair, dr_pair, and qmgr.
+
+￼Built the recording rules here:
+
+Download the Prometheus recording rules YAML￼
+
+How this scores health:
+	•	partitioned qmgr: +8
+	•	not running: +5
+	•	HA out of sync: +4
+	•	DR unhealthy: +3
+	•	channel issues: +1 to +3
+	•	queue pressure: +1 to +3
+	•	no activity while running: +1
+	•	no connections while running: +1
+
+That weighting is designed so the table naturally pushes the ugliest HA/DR conditions to the top first:
+	1.	partitioned qmgr
+	2.	stopped/down qmgr
+	3.	unsynced HA / bad DR
+	4.	channel and queue stress
+
+A few practical notes:
+	•	These rules assume you already expose mq_qmgr_status, mq_ha_partitioned, mq_ha_sync_state, and mq_dr_status.
+	•	They also assume your MQ metrics carry labels like qmgr, quad, ha_pair, and dr_pair.
+	•	If your exporter uses different label names or status values, the YAML will need a quick adjustment.
+
+For Grafana:
+	•	use mq_qmgr_health_score for the main sort
+	•	use mq_quad_worst_health_score for quad summary panels
+	•	use mq_hadr_pair_worst_health_score for HA/DR pair rollups
+	•	use mq_qmgr_health_warning and mq_qmgr_health_critical for stat panels
+
+The one thing I’d tighten next is building the source metrics exporter for:
+	•	mq_qmgr_status
+	•	mq_ha_partitioned
+	•	mq_ha_sync_state
+	•	mq_dr_status
+
+Without those, the health score won’t really reflect appliance HA/DR reality. ￼
